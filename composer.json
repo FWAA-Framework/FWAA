@@ -1,0 +1,19 @@
+{
+  "name": "fwaa/fwaa",
+  "description": "A framework for PHP web applications and APIs",
+  "keywords": ["framework", "web", "application"],
+  "homepage": "https://aaron-junker.ch",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Aaron Junker",
+      "email": "aaron.junker@outlook.com"
+    }
+  ],
+  "autoload": {
+    "psr-4": {
+      "Fwaa\\": "src/"
+    }
+  },
+  "type": "library"
+}
