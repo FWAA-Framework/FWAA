@@ -23,7 +23,7 @@
 		}
 	},
 	"bin": ["bin/fwaa"],
-	"type": "library",
+	"type": "template",
 	"config": {
 		"bin-dir": "./"
 	}
