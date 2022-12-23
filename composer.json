@@ -15,16 +15,13 @@
 		}
 	],
 	"require": {
-		"php": ">=8.1.0"
+		"php": ">=8.1.0",
+		"ext-sockets": "*"
 	},
 	"autoload": {
 		"psr-4": {
-			"Fwaa\\": "src/"
+			"Fwaa\\": "bin/"
 		}
 	},
-	"bin": ["bin/fwaa"],
-	"type": "template",
-	"config": {
-		"bin-dir": "./"
-	}
+	"type": "template"
 }

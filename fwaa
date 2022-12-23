@@ -1,0 +1,26 @@
+<?php
+	// Set the time limit to unlimited in case the script takes a long time to run
+	set_time_limit(0);
+
+	include_once "vendor/autoload.php";
+	use Fwaa\console\serve;
+
+	if($argv[1] == "serve"){
+		cli_set_process_title("FWAA Server");
+		if($argc > 4 || $argc == 3){
+			echo "Usage: fwaa serve [<address> <port>]";
+			exit(1);
+		}elseif(isset($argv[2]) && !filter_var($argv[2], FILTER_VALIDATE_IP)){
+			echo "Invalid IP address";
+			exit(1);
+		}elseif(isset($argv[3]) && !is_numeric($argv[3]) && !($argv[3] < 0) && !($argv[3] > 65535)){
+			echo "Invalid port";
+			exit(1);
+		}
+		$serve = new serve($argv[2] ?? "0.0.0.0", $argv[3] ?? 8080);
+	}else if($argv[1] == "update"){
+		`composer update`;
+	}
+	else{
+		print "Unknown command: " . $argv[1];
+	}
