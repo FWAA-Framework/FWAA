@@ -1,0 +1,2 @@
+<?php
+	$FWAASettings["API"]["Path"] = "api";
