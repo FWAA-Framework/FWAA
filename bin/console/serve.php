@@ -1,60 +1,79 @@
 <?php
-
-	// Certain variables in this script use the prefix "FWAA_". This is to avoid conflicts with other variables in the global scope when including PHP files.
-
 	namespace Fwaa\console;
 
 	use JetBrains\PhpStorm\NoReturn;
+	use Socket;
 
+	/**
+	 * This class gets called from the FWAA console tool and starts the FWAA server
+	 */
 	class serve
 	{
+		/**
+		 * The variable holding the socket server
+		 * @var false|Socket
+		 */
+		private readonly false|Socket $server;
+
+		/**
+		 * The variable holding the current socket client
+		 * @var false|Socket
+		 */
+		private false|Socket $client;
+
+		/**
+		 * @param $address string The address to listen on
+		 * @param $port int The port to listen on
+		 */
 		#[NoReturn]
-		function __construct($address, $port)
+		function __construct(string $address, int $port)
 		{
 			// Create a server socket
-			$FWAA_Server = @socket_create(AF_INET, SOCK_STREAM, 0);
+			$this->server = @socket_create(AF_INET, SOCK_STREAM, 0);
 
-			$this->processSocketEstablishingError($FWAA_Server);
+			$this->processSocketEstablishingError($this->server);
 
 			// Bind the socket to the address and port
-			$this->processSocketEstablishingError(@socket_bind($FWAA_Server, $address, $port));
+			$this->processSocketEstablishingError(@socket_bind($this->server, $address, $port));
 
 			// Start listening for incoming connections
-			$this->processSocketEstablishingError(@socket_listen($FWAA_Server));
+			$this->processSocketEstablishingError(@socket_listen($this->server));
 
 			echo "Server started on $address:$port\n";
 
-			// Loop indefinitely
 			while(true){
 				// Accept an incoming connection
-				$FWAA_Client = socket_accept($FWAA_Server);
+				$this->client = socket_accept($this->server);
 
 				// Read the data from the client
-				socket_recv($FWAA_Client, $request, 1024,0);
+				socket_recv($this->client, $request, 1024,0);
 
 				if($request == null){
-					socket_close($FWAA_Client);
+					socket_close($this->client);
 					continue;
 				}
 
-				if($this->getHTTPVersion($request) != "1.0" && $this->getHTTPVersion($request) != "1.1"){
-					socket_write($FWAA_Client, "HTTP/1.0 505 HTTP Version Not Supported");
-					socket_close($FWAA_Client);
+				// Test if the HTTP version is valid
+				$HTTPVersion = $this->getHTTPVersion($request);
+				if($HTTPVersion == null){
 					continue;
 				}
-
+				if(!$this->isHTTPVersionSupported($HTTPVersion)){
+					socket_write($this->client, "HTTP/1.1 505 HTTP Version Not Supported");
+					socket_close($this->client);
+					continue;
+				}
 
 				// Parse the request using the parse_url function
 				$resource = $this->getRequestedLocation($request);
 
-				//strip search params
+				// Strip search params
 				$resource = explode("?", $resource)[0];
 				if($resource == "/" || $resource == null){
 					$resource = "/index.php";
 				}
 
 				$pathToPublicResources = "src/public";
-
 
 				// Get the file extension and corresponding mime type
 				$extension = pathinfo($pathToPublicResources.$resource, PATHINFO_EXTENSION);
@@ -71,10 +90,14 @@
 				$response .= "Content-Type: ".$mime."\r\n";
 				$response .= "Connection: keep-alive\r\n";
 
-				socket_write($FWAA_Client, $response);
+				socket_write($this->client, $response);
 
 				if (preg_match('/Content-Length: (\d+)/', $request, $matches)) {
-					$requestBody = preg_match('/\r\n\r\n(.*)/s', $request, $matches) ? $matches[1] : '';
+					if($matches[1] > 0){
+						$requestBody = preg_match('/\r\n\r\n(.*)/s', $request, $matches) ? $matches[1] : "";
+					}else{
+						$requestBody = "";
+					}
 				}
 
 				if(file_exists($pathToPublicResources.$resource)){
@@ -95,7 +118,7 @@
 					}
 
 					$response = $fileContents;
-					socket_write($FWAA_Client, "Content-Length: ".strlen($response)."\r\n\r\n");
+					socket_write($this->client, "Content-Length: ".strlen($response)."\r\n\r\n");
 				}else{
 					$response = "HTTP/1.1 404 Not Found\r\n";
 					$response .= "Content-Type: text/text\r\n";
@@ -105,20 +128,34 @@
 
 
 				// Send a response back to the client
-				socket_write($FWAA_Client, $response);
+				socket_write($this->client, $response);
 
 				// Close the client connection
-				socket_close($FWAA_Client);
+				socket_close($this->client);
 			}
 		}
 
-		function getRequestedLocation(string $HTTPRequest): string|null{
+		/**
+		 * Returns the requested location from the request
+		 * @param string $HTTPRequest The full HTTP request
+		 * @return string
+		 */
+		function getRequestedLocation(string $HTTPRequest): string{
 			preg_match("/[A-Z]{3,}\s(\/.+?)\sHTTP\/\d\.\d/", $HTTPRequest, $matches);
-			return $matches[1];
+			return $matches[1]??"/";
 		}
 
+		/**
+		 * Returns the get parameters as an array
+		 * The request must be a GET request
+		 * @param string $HTTPRequest The full HTTP request
+		 * @return array
+		 */
 		private function getSearchParameters(string $HTTPRequest): array{
 			preg_match("/\?(.+?)\sHTTP\/\d\.\d/", $HTTPRequest, $matches);
+			if(!isset($matches[1])){
+				return [];
+			}
 			$parameters = explode("&", $matches[1]);
 			$parametersArray = [];
 			foreach($parameters as $parameter){
@@ -128,6 +165,12 @@
 			return $parametersArray;
 		}
 
+		/**
+		 * Returns the post parameters as an array
+		 * The request must be a POST request
+		 * @param string $HTTPBody The body of the HTTP request
+		 * @return array
+		 */
 		private function getPostParameters(string $HTTPBody): array{
 			$HTTPBody = str_replace("\r", "", $HTTPBody);
 			$HTTPBody = str_replace("\n", "", $HTTPBody);
@@ -140,16 +183,33 @@
 			return $params;
 		}
 
+		/**
+		 * Returns the request method of the HTTP request
+		 * @param string $HTTPRequest The full HTTP request
+		 * @return string|null
+		 */
 		private function getRequestMethod(string $HTTPRequest): string|null{
-			preg_match("/([A-Z]{3,})\s\/.+?\sHTTP\/\d\.\d/", $HTTPRequest, $matches);
+			preg_match("/([A-Z]{3,})\s.+?\sHTTP\/\d\.\d/", $HTTPRequest, $matches);
 			return $matches[1];
 		}
 
+		/**
+		 * Returns the HTTP version of the request
+		 * @param string $HTTPRequest The full HTTP request
+		 * @return string|null
+		 */
 		private function getHTTPVersion(string $HTTPRequest): string|null{
-			preg_match("/[A-Z]{3,}\s\/.+?\sHTTP\/(\d\.\d)/", $HTTPRequest, $matches);
+			preg_match("/[A-Z]{3,}\s.+?\sHTTP\/(\d\.\d)/", $HTTPRequest, $matches);
 			return $matches[1];
 		}
 
+		/**
+		 * Returns a mime type corresponding to the given file extension
+		 * If the extension is not found, it returns "text/plain"
+		 * @param string $extension The file extension without the dot
+		 * @example getMimeTypeFromExtension("html") // returns "text/html"
+		 * @return string The mime type
+		 */
 		private function getMimeTypeFromExtension(string $extension): string{
 			return match ($extension){
 				"html", "htm" => "text/html",
@@ -167,6 +227,10 @@
 			};
 		}
 
+		/**
+		 * @param mixed $errorNotPresent If this variable is false an error will be thrown
+		 * @return void
+		 */
 		private function processSocketEstablishingError(mixed $errorNotPresent): void
 		{
 			if($errorNotPresent === false){
@@ -175,5 +239,14 @@
 
 				die("Couldn't bind socket: [$errorCode] $errorMessage");
 			}
+		}
+
+		/**
+		 * @param string $HTTPVersion A string containing the HTTP version
+		 * @example isHTTPVersionValid("1.1") // true
+		 * @return bool
+		 */
+		private function isHTTPVersionSupported(string $HTTPVersion): bool{
+			return $HTTPVersion == "1.1" || $HTTPVersion == "1.0";
 		}
 	}
