@@ -20,6 +20,8 @@
 		$serve = new serve($argv[2] ?? "0.0.0.0", $argv[3] ?? 8080);
 	}else if($argv[1] == "update"){
 		`composer update`;
+	}else if($argv[1] == "install"){
+		`composer install`;
 	}
 	else{
 		print "Unknown command: " . $argv[1];
