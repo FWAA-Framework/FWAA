@@ -1,7 +1,11 @@
 <?php
+	declare(strict_types=1);
 
 	namespace Fwaa\apiRouter;
 
+	/**
+	 * An interface for API routes that use the GET HTTP method.
+	 */
 	interface GETApiRoute
 	{
 		/**

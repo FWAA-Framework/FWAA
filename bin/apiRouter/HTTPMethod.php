@@ -1,7 +1,11 @@
 <?php
+	declare(strict_types=1);
 
 	namespace Fwaa\apiRouter;
 
+	/**
+	 * An enum containing the HTTP methods
+	 */
 	enum HTTPMethod
 	{
 		case GET;

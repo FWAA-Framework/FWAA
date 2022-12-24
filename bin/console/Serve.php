@@ -1,4 +1,6 @@
 <?php
+	declare(strict_types=1);
+
 	namespace Fwaa\console;
 
 	use JetBrains\PhpStorm\NoReturn;
@@ -7,7 +9,7 @@
 	/**
 	 * This class gets called from the FWAA console tool and starts the FWAA server
 	 */
-	class serve
+	class Serve
 	{
 		/**
 		 * The variable holding the socket server
@@ -22,22 +24,22 @@
 		private false|Socket $client;
 
 		/**
-		 * @param $address string The address to listen on
-		 * @param $port int The port to listen on
+		 * @param string $address The address to listen on
+		 * @param int $port The port to listen on
 		 */
 		#[NoReturn]
-		function __construct(string $address, int $port)
+		public function __construct(string $address, int $port)
 		{
 			// Create a server socket
 			$this->server = @socket_create(AF_INET, SOCK_STREAM, 0);
 
-			$this->processSocketEstablishingError($this->server);
+			$this->processSocketError($this->server);
 
 			// Bind the socket to the address and port
-			$this->processSocketEstablishingError(@socket_bind($this->server, $address, $port));
+			$this->processSocketError(@socket_bind($this->server, $address, $port));
 
 			// Start listening for incoming connections
-			$this->processSocketEstablishingError(@socket_listen($this->server));
+			$this->processSocketError(@socket_listen($this->server));
 
 			echo "Server started on $address:$port\n";
 
@@ -54,12 +56,12 @@
 				}
 
 				// Test if the HTTP version is valid
-				$HTTPVersion = $this->getHTTPVersion($request);
-				if($HTTPVersion == null){
+				$httpVersion = $this->getHTTPVersion($request);
+				if($httpVersion == null){
 					continue;
 				}
-				if(!$this->isHTTPVersionSupported($HTTPVersion)){
-					socket_write($this->client, "HTTP/1.1 505 HTTP Version Not Supported");
+				if(!$this->isHTTPVersionSupported($httpVersion)){
+					socket_write($this->client, 'HTTP/1.1 505 HTTP Version Not Supported');
 					socket_close($this->client);
 					continue;
 				}
@@ -68,12 +70,12 @@
 				$resource = $this->getRequestedLocation($request);
 
 				// Strip search params
-				$resource = explode("?", $resource)[0];
-				if($resource == "/" || $resource == null){
-					$resource = "/index.php";
+				$resource = explode('?', $resource)[0];
+				if($resource == '/' || $resource == null){
+					$resource = '/index.php';
 				}
 
-				$pathToPublicResources = "src/public";
+				$pathToPublicResources = 'src/public';
 
 				// Get the file extension and corresponding mime type
 				$extension = pathinfo($pathToPublicResources.$resource, PATHINFO_EXTENSION);
@@ -81,22 +83,22 @@
 
 				$isPHP = false;
 
-				if($mime == "application/php"){
-					$mime = "text/html";
+				if($mime == 'application/php'){
+					$mime = 'text/html';
 					$isPHP = true;
 				}
 
 				$response = "HTTP/1.1 200 OK\r\n";
-				$response .= "Content-Type: ".$mime."\r\n";
+				$response .= 'Content-Type: ' .$mime."\r\n";
 				$response .= "Connection: keep-alive\r\n";
 
 				socket_write($this->client, $response);
 
 				if (preg_match('/Content-Length: (\d+)/', $request, $matches)) {
 					if($matches[1] > 0){
-						$requestBody = preg_match('/\r\n\r\n(.*)/s', $request, $matches) ? $matches[1] : "";
+						$requestBody = preg_match('/\r\n\r\n(.*)/s', $request, $matches) ? $matches[1] : '';
 					}else{
-						$requestBody = "";
+						$requestBody = '';
 					}
 				}
 
@@ -104,10 +106,10 @@
 					if ($isPHP){
 						// Run the PHP file and get the output
 
-						if($this->getRequestMethod($request) == "GET"){
+						if($this->getRequestMethod($request) == 'GET'){
 							$_GET = $this->getSearchParameters($request);
-						}else if($this->getRequestMethod($request) == "POST"){
-							$_POST = $this->getPostParameters($requestBody ?? "");
+						}elseif($this->getRequestMethod($request) == 'POST'){
+							$_POST = $this->getPostParameters($requestBody ?? '');
 						}
 
 						ob_start();
@@ -118,7 +120,7 @@
 					}
 
 					$response = $fileContents;
-					socket_write($this->client, "Content-Length: ".strlen($response)."\r\n\r\n");
+					socket_write($this->client, 'Content-Length: ' .strlen($response)."\r\n\r\n");
 				}else{
 					$response = "HTTP/1.1 404 Not Found\r\n";
 					$response .= "Content-Type: text/text\r\n";
@@ -140,9 +142,9 @@
 		 * @param string $HTTPRequest The full HTTP request
 		 * @return string
 		 */
-		function getRequestedLocation(string $HTTPRequest): string{
-			preg_match("/[A-Z]{3,}\s(\/.+?)\sHTTP\/\d\.\d/", $HTTPRequest, $matches);
-			return $matches[1]??"/";
+		private function getRequestedLocation(string $HTTPRequest): string{
+			preg_match('/[A-Z]{3,}\s(\/.+?)\sHTTP\/\d\.\d/', $HTTPRequest, $matches);
+			return $matches[1]?? '/';
 		}
 
 		/**
@@ -152,14 +154,14 @@
 		 * @return array
 		 */
 		private function getSearchParameters(string $HTTPRequest): array{
-			preg_match("/\?(.+?)\sHTTP\/\d\.\d/", $HTTPRequest, $matches);
+			preg_match('/\?(.+?)\sHTTP\/\d\.\d/', $HTTPRequest, $matches);
 			if(!isset($matches[1])){
 				return [];
 			}
-			$parameters = explode("&", $matches[1]);
+			$parameters = explode('&', $matches[1]);
 			$parametersArray = [];
 			foreach($parameters as $parameter){
-				$parameter = explode("=", $parameter);
+				$parameter = explode('=', $parameter);
 				$parametersArray[$parameter[0]] = $parameter[1];
 			}
 			return $parametersArray;
@@ -168,14 +170,14 @@
 		/**
 		 * Returns the post parameters as an array
 		 * The request must be a POST request
-		 * @param string $HTTPBody The body of the HTTP request
+		 * @param string $httpBody The body of the HTTP request
 		 * @return array
 		 */
-		private function getPostParameters(string $HTTPBody): array{
-			$HTTPBody = str_replace("\r", "", $HTTPBody);
-			$HTTPBody = str_replace("\n", "", $HTTPBody);
-			$params = array();
-			$pairs = explode('&', $HTTPBody);
+		private function getPostParameters(string $httpBody): array{
+			$httpBody = str_replace("\r", '', $httpBody);
+			$httpBody = str_replace("\n", '', $httpBody);
+			$params = [];
+			$pairs = explode('&', $httpBody);
 			foreach ($pairs as $pair) {
 				list($key, $value) = explode('=', $pair);
 				$params[urldecode($key)] = urldecode($value);
@@ -189,7 +191,7 @@
 		 * @return string|null
 		 */
 		private function getRequestMethod(string $HTTPRequest): string|null{
-			preg_match("/([A-Z]{3,})\s.+?\sHTTP\/\d\.\d/", $HTTPRequest, $matches);
+			preg_match('/([A-Z]{3,})\s.+?\sHTTP\/\d\.\d/', $HTTPRequest, $matches);
 			return $matches[1];
 		}
 
@@ -199,7 +201,7 @@
 		 * @return string|null
 		 */
 		private function getHTTPVersion(string $HTTPRequest): string|null{
-			preg_match("/[A-Z]{3,}\s.+?\sHTTP\/(\d\.\d)/", $HTTPRequest, $matches);
+			preg_match('/[A-Z]{3,}\s.+?\sHTTP\/(\d\.\d)/', $HTTPRequest, $matches);
 			return $matches[1];
 		}
 
@@ -212,18 +214,18 @@
 		 */
 		private function getMimeTypeFromExtension(string $extension): string{
 			return match ($extension){
-				"html", "htm" => "text/html",
-				"css" => "text/css",
-				"js" => "application/javascript",
-				"png" => "image/png",
-				"jpg", "jpeg" => "image/jpeg",
-				"gif" => "image/gif",
-				"svg" => "image/svg+xml",
-				"ico" => "image/x-icon",
-				"json" => "application/json",
-				"xml" => "application/xml",
-				"php", "php3", "php4", "php5", "php7", "inc" => "application/php",
-				default => "text/plain"
+				'html', 'htm' => 'text/html',
+				'css' => 'text/css',
+				'js' => 'application/javascript',
+				'png' => 'image/png',
+				'jpg', 'jpeg' => 'image/jpeg',
+				'gif' => 'image/gif',
+				'svg' => 'image/svg+xml',
+				'ico' => 'image/x-icon',
+				'json' => 'application/json',
+				'xml' => 'application/xml',
+				'php', 'php3', 'php4', 'php5', 'php7', 'inc' => 'application/php',
+				default => 'text/plain'
 			};
 		}
 
@@ -231,7 +233,7 @@
 		 * @param mixed $errorNotPresent If this variable is false an error will be thrown
 		 * @return void
 		 */
-		private function processSocketEstablishingError(mixed $errorNotPresent): void
+		private function processSocketError(mixed $errorNotPresent): void
 		{
 			if($errorNotPresent === false){
 				$errorCode = socket_last_error();
@@ -247,6 +249,6 @@
 		 * @return bool
 		 */
 		private function isHTTPVersionSupported(string $HTTPVersion): bool{
-			return $HTTPVersion == "1.1" || $HTTPVersion == "1.0";
+			return $HTTPVersion == '1.1' || $HTTPVersion == '1.0';
 		}
 	}

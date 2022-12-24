@@ -1,2 +1,3 @@
 <?php
-	$FWAASettings["API"]["Path"] = "api";
+	declare(strict_types=1);
+	$fwaaSettings['API']['Path'] = 'src/api';
